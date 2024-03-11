@@ -1,6 +1,8 @@
 import asyncio
 import pygame as py
-import ChessEngine
+import ChessEngine,chessAi
+import sys
+from multiprocessing import Process, Queue
 import Images
 width=height=512
 dimension=8
@@ -20,12 +22,17 @@ async def main():
     gs=ChessEngine.gamestate()
     validmoves=gs.ValidMoves()
     movemade=False
+    ai_thinking=False
+    move_finder_process = None
     loadimages()
     flag=True
+    humanturn=True
     select=()
     clicks=[]
     while flag:
+        humanturn=gs.whiteTomove
         for e in py.event.get():
+
             if e.type == py.QUIT:
                 flag=False
             elif e.type == py.MOUSEBUTTONDOWN:
@@ -38,19 +45,44 @@ async def main():
                 else:
                     select=(row,col)
                     clicks.append(select)
-                if len(clicks) == 2:
-                    print(clicks)
+                if len(clicks) == 2 and humanturn:
+                    #print(clicks)
                     move=ChessEngine.Move(clicks[0],clicks[1],gs.board)
                     if move in validmoves:
                         gs.makeMove(move)
+                        print("nice")
                         movemade=True
                         select=()
                         clicks=[]
                     else:
                         clicks=[select]
+        """
+        if not humanturn:
+            print('hello')
+            gs.makeMove(chessAi.findRandomMove(validmoves))
+            movemade=True
+        """
+        if not humanturn:
+            print("hello")
+            if not ai_thinking:
+                ai_thinking = True
+                return_queue = Queue()
+                chessAi.findBestMove(gs,validmoves,return_queue)
+
+            if not return_queue.empty():
+                #move_finder_process.join()
+                ai_move = return_queue.get()
+                print(ai_move)
+                if ai_move is None:
+                    ai_move = chessAi.findRandomMove(validmoves)
+                gs.makeMove(ai_move)
+                movemade = True
+                ai_thinking = False
+        #"""
         if movemade:
             validmoves=gs.ValidMoves()
             if gs.checkmate:
+                print("yes")
                 flag=False
                 Flag=True
             movemade=False
@@ -95,7 +127,6 @@ def drawPieces(screen,board):
         for c in range(8):
             piece=board[r][c];
             if piece!='--':
-                print(images[piece])
                 screen.blit(images[piece],py.Rect(c*64,r*64,512,512))
 def draw_text(screen, text):
     font = py.font.SysFont("Helvitca", 32, True, False)
